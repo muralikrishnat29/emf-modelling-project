@@ -1,0 +1,7 @@
+Library {
+db_Id:long;
+db_version:int;
+name:string;
+writers : Writer[];
+books : Book[];
+}

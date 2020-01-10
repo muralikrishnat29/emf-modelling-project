@@ -1,0 +1,8 @@
+Book {
+db_Id:long;
+db_version:int;
+title:string;
+pages:int;
+category:#BookCategory;
+author : Writer;
+}

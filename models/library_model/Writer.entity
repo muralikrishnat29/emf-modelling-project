@@ -1,0 +1,6 @@
+Writer {
+db_Id:long;
+db_version:int;
+name:string;
+books : Book[];
+}

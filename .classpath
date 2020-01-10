@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-12">
+		<attributes>
+			<attribute name="module" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.pde.core.requiredPlugins"/>
+	<classpathentry kind="lib" path="C:/Users/mthulasi/Downloads/org.eclipse.emf.ecore.xmi-2.16.0.jar"/>
+	<classpathentry kind="lib" path="C:/Users/mthulasi/Documents/code/jarFiles/javax.json-api-1.1.4.jar"/>
+	<classpathentry kind="lib" path="C:/Users/mthulasi/Downloads/telosys-cli-3.1.2-001/telosys-cli-3.1.2-001.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
