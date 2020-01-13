@@ -3,6 +3,7 @@ package org.metamodelextract;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import org.telosys.tools.dsl.parser.*;
@@ -12,28 +13,49 @@ import org.eclipse.emf.ecore.*;
 import org.eclipse.emf.ecore.resource.*;
 import org.eclipse.emf.ecore.resource.impl.*;
 import org.eclipse.emf.ecore.xmi.impl.XMIResourceFactoryImpl;
+import org.telosys.tools.api.*;
 
 public class StartClass {
 	/* To store and retrieve ECore Instance Types */
 	private static final Map<String, String> typeMap= new HashMap<String, String>();
 	
-	private static String entitiesDirectory= "";
-	
-	public static synchronized void putInMap(String key, String value) {
-		typeMap.put(key, value);
-	}  
-
 	public static synchronized String getFromMap(String key) {
 	    return typeMap.get(key);
 	}
 	
-	public static synchronized void updateEntitiesDirectory(String value) {
-		entitiesDirectory = value;
-	}  
+	public static synchronized void putInMap(String key, String value) {
+		typeMap.put(key, value);
+	}
 
+	private static String entitiesDirectory= "";
+	
 	public static synchronized String getEntitiesDirectory() {
 	    return entitiesDirectory;
 	}
+	
+	public static synchronized void updateEntitiesDirectory(String value) {
+		entitiesDirectory = value;
+	}
+	
+	private static String modelName= "";
+
+	public static synchronized String getModelName() {
+	    return modelName;
+	}
+	
+	public static synchronized void updateModelName(String value) {
+		modelName = value;
+	}
+	
+	private static String modelDirectory= "";
+
+	public static synchronized String getModelDirectory() {
+	    return modelDirectory;
+	}
+	
+	public static synchronized void updateModelDirectory(String value) {
+		modelDirectory = value;
+	} 
 	
 	/* Adding Known list of instance Types */
 	public static void updateKnownValues() {
@@ -61,6 +83,7 @@ public class StartClass {
 		 * 3. Launch Generation
 		 */
 		extractData();
+		startCodeGeneration();
 	}
 	
 	public static void extractData() {
@@ -90,29 +113,52 @@ public class StartClass {
 	}
 	
 	public static void createModelAndEntityFolder(String modelName) {
-		File modelDirectory = new File("models");
-		File entityFolder = new File(modelDirectory+File.separator+modelName+"_model");
+		/* To Organise Model and Entity files
+		 * as per Telosys framework
+		 */
+		File modelDirectory;
+		File entityFolder;
 		try {
-			if(!modelDirectory.exists()) {
-				modelDirectory.mkdirs();
-				if(!entityFolder.exists())
-					entityFolder.mkdirs();
-				String modelData = "version=1.0\r\n" + 
+			updateModelName(modelName);
+			// Files.deleteIfExists(Paths.get(modelDirectory.getAbsolutePath()));
+			TelosysProject proj = new TelosysProject(System.getProperty("user.dir"));
+			proj.initProject();
+			String modelDir  = proj.getProjectFolder()+File.separator+"TelosysTools";
+			modelDirectory = new File(modelDir);
+			entityFolder = new File(modelDirectory+File.separator+modelName+"_model");
+			if(!entityFolder.exists())
+				entityFolder.mkdirs();
+			String modelData = "version=1.0\r\n" + 
 						"name="+modelName+"\r\n" + 
 						"description=";
-				File modelFileDir = new File(modelDirectory+File.separator+modelName+".model");
-				FileOutputStream modelFile = new FileOutputStream(modelFileDir);
-				modelFile.write(modelData.getBytes());
-				modelFile.flush();
-				modelFile.close();
-				updateEntitiesDirectory(entityFolder.getAbsolutePath());
-			}
+			File modelFileDir = new File(modelDirectory+File.separator+modelName+".model");
+			FileOutputStream modelFile = new FileOutputStream(modelFileDir);
+			modelFile.write(modelData.getBytes());
+			modelFile.flush();
+			modelFile.close();
+			updateEntitiesDirectory(entityFolder.getAbsolutePath());
+			updateModelDirectory(modelDirectory.getAbsolutePath());
 		}
 		catch(SecurityException e) {
 			System.out.println("Security error while creating/accessing a directory/file:"+e.getMessage());
 		}
 		catch(Exception e) {
 			System.out.println(e.getMessage());
+		}
+	}
+	
+	public static void startCodeGeneration() {
+		try {
+			TelosysProject proj = new TelosysProject(System.getProperty("user.dir"));
+			// var model = proj.loadModel(getModelName());
+			var cfg = proj.getTelosysToolsCfg();
+			// proj.getProjectFolder()
+			var model = proj.loadModel(getModelName()+".model");
+			var templatesStatus = proj.downloadAndInstallBundle("muralikrishnat29", "python-persistence-sqlalchemy");
+			var genResult = proj.launchGeneration(model, "python-persistence-sqlalchemy");
+		}
+		catch(Exception e) {
+			System.out.println(e);
 		}
 	}
 	
@@ -160,11 +206,28 @@ public class StartClass {
 		}
 	}
 	
+	public static void createEnumFile(String enumData, String enumName) {
+		try {
+			String entityFileName = getEntitiesDirectory()+File.separator+enumName+".enum";
+			File entityFileDir = new File(entityFileName);
+			FileOutputStream enumFile = new FileOutputStream(entityFileDir);
+			enumFile.write(enumData.getBytes());
+			enumFile.flush();
+			enumFile.close();
+		}
+		catch(Exception e) {
+			System.out.println(e.getMessage());
+		}
+	}
+	
 	public static String processClassFeature (EAttribute attribute) {
 		/*
 		 * Adapt ECore Model feature to an Entity Feature
 		 * Example: Convert ELong to long
-		 * ToDo: Make a neat approach for mapping instead of switch case
+		 * ToDo: 
+		 * 		1. Make a neat approach for mapping instead of switch case
+		 * 		2. Need to make a code segment to detect the inner features  
+		 * 		of attribute (Ex: Id, NotNull) 
 		 */
 		String name = attribute.getName() + ":";
 		String type = "";
@@ -184,29 +247,30 @@ public class StartClass {
 		case "EENum":
 			type = "enum";
 			break;
-		default:
-		{
+		default:{
 			if(attribute.getEType().eClass().getName() == "EEnum") {
 				type = attribute.getEType().getName();
 				isENum = true;
+				}
 			}
 		}
-		}
-		String isID = attribute.isID()? "@Id": "";
-		String finalAttr = attribute.isID() && !isENum? 
-				name + type + "{" + isID + "};": 
-					isENum? name + "#" + type + ";": name + type+";" ;
+		boolean isID = attribute.isID() || attribute.getName().toLowerCase().contains("id");
+		String idAttribute = isID? "@Id": "";
+		String finalAttr = isID && !isENum? 
+				name + type + "{" + idAttribute + "};": 
+					isENum? "\n": name + type+";" ;
+					// isENum? name + "#" + type + ";": name + type+";" ;
 		// return finalAttr;
 		return finalAttr;
-		}
+	}
 	
 	public static String processClassReference (EReference reference) {
 		/*
 		 * Adapt ECore reference relationship
 		 * to Telosys Entity Reference Type
 		 * Using upperbound and lowerbound values,
-		 * figure out the relationship type
-		 * one-to-one or one-to-many
+		 * 	figure out the relationship type
+		 * 		one-to-one or one-to-many
 		 */
 		try {
 			String finalRef = "";
@@ -229,13 +293,18 @@ public class StartClass {
 	}
 	
 	public static void processEnum(EEnum eEnum) {
-		StringBuilder enumEntity = new StringBuilder(eEnum.getName()+ 
-				": string {");
-		var enumValues = eEnum.getELiterals();
-		for (var value: enumValues) {
-			enumEntity.append("\n"+value+",");
+		try {
+			StringBuilder enumEntity = new StringBuilder(eEnum.getName()+ 
+					": string {");
+			var enumValues = eEnum.getELiterals();
+			for (var value: enumValues) {
+				enumEntity.append("\n"+value.toString().substring(0,2)+":\""+value+"\",");
+			}
+			enumEntity.append("\n}");
+			createEnumFile(enumEntity.toString(), eEnum.getName());
 		}
-		enumEntity.append("\n}");
-		System.out.println(enumEntity);
+		catch(Exception e) {
+			System.out.println(e.getMessage());
+		}
 	}
 }
